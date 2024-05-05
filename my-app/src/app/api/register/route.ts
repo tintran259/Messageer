@@ -17,6 +17,18 @@ export async function POST(req: Request) {
       });
     }
 
+    const userExists = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (userExists) {
+      return new NextResponse('"User already exists"', {
+        status: STATUS_API.INTERNAL_SERVER_ERROR,
+      });
+    }
+
     const hashPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({

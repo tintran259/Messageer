@@ -19,7 +19,7 @@ export const authOption: AuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     }),
     CredentialsProvider({
-      name: "credential",
+      name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
@@ -45,7 +45,7 @@ export const authOption: AuthOptions = {
         );
 
         if (!user || !user.hashPassword || !isCorrectPassword) {
-          throw new Error("Invalid credentials");
+          throw new Error("User not found or invalid");
         }
 
         return user;
@@ -57,6 +57,9 @@ export const authOption: AuthOptions = {
     strategy: "jwt",
   },
   secret: process.env.NEXT_AUTH_SECRET,
+  pages: {
+    signIn: "/",
+  },
 };
 
 const handler = NextAuth(authOption);

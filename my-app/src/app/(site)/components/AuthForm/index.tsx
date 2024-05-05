@@ -1,34 +1,32 @@
 "use client";
 
 // libs
-import axios from "axios";
-import { useState } from "react";
+import axios, { AxiosError } from "axios";
+import { use, useEffect, useState } from "react";
 import { useForm, FieldValues } from "react-hook-form";
 import { BsGithub, BsGoogle } from "react-icons/bs";
+import { signIn, useSession } from "next-auth/react";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 // components
 import Input from "@/components/Input";
 import Button from "@/components/Button";
 import AuthSocialButton from "../AuthSocialButton";
-import toast from "react-hot-toast";
+// others
+import { MAIN_PAGE } from "@/constants";
 
 type IVariant = "LOGIN" | "REGISTER";
 
 const AuthForm = () => {
+  const router = useRouter();
+  const section = useSession();
   const [variant, setVariant] = useState<IVariant>("LOGIN");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  const toggleVariant = () => {
-    if (variant === "LOGIN") {
-      setVariant("REGISTER");
-    } else {
-      setVariant("LOGIN");
-    }
-  };
-
   const {
     register,
     handleSubmit,
     formState: { errors },
+    clearErrors,
   } = useForm<FieldValues>({
     defaultValues: {
       email: "",
@@ -37,24 +35,72 @@ const AuthForm = () => {
     },
   });
 
+  useEffect(() => {
+    if (section?.status === "authenticated") {
+      router.push(MAIN_PAGE);
+    }
+  }, [section?.status, router]);
+
+  const toggleVariant = () => {
+    clearErrors();
+    if (variant === "LOGIN") {
+      setVariant("REGISTER");
+    } else {
+      setVariant("LOGIN");
+    }
+  };
+
   const onSubmit = async (data: FieldValues) => {
     setIsLoading(true);
     if (variant === "LOGIN") {
       // login
-    }
-    if (variant === "REGISTER") {
       try {
-        const res = await axios.post("/api/register", data);
-        setIsLoading(false);
+        const response = await signIn("credentials", {
+          redirect: false,
+          email: data.email,
+          password: data.password,
+        });
+
+        if (response?.error) {
+          setIsLoading(false);
+          toast.error(response.error);
+        }
+
+        router.push(MAIN_PAGE);
       } catch (error) {
         setIsLoading(false);
         toast.error("Something went wrong");
+      }
+    }
+    if (variant === "REGISTER") {
+      try {
+        await axios.post("/api/register", data);
+        setIsLoading(false);
+        toast.success("Register successfully");
+        router.push(MAIN_PAGE);
+      } catch (error) {
+        const message =
+          ((error as AxiosError)?.response?.data as string) ||
+          "Something went wrong";
+
+        setIsLoading(false);
+        toast.error(message);
       }
       // register
     }
   };
 
-  const socialAction = (value: string) => {};
+  const socialAction = async (value: string) => {
+    setIsLoading(true);
+    try {
+      await signIn(value);
+      setIsLoading(false);
+      router.push(MAIN_PAGE);
+    } catch (error) {
+      toast.error("Something went wrong");
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div
@@ -74,6 +120,9 @@ const AuthForm = () => {
               register={register}
               errors={errors}
               disabled={isLoading}
+              options={{
+                required: "Name is required",
+              }}
             />
           )}
           <Input
@@ -83,6 +132,17 @@ const AuthForm = () => {
             register={register}
             errors={errors}
             disabled={isLoading}
+            options={{
+              validate: (value) => {
+                if (
+                  !/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/.test(value)
+                ) {
+                  return "Invalid email format";
+                }
+                return true;
+              },
+              required: "Email is required",
+            }}
           />
           <Input
             label="Password"
@@ -92,6 +152,13 @@ const AuthForm = () => {
             errors={errors}
             disabled={isLoading}
             type="password"
+            options={{
+              required: "Password is required",
+              minLength: {
+                value: 6,
+                message: "Password must be at least 6 characters",
+              },
+            }}
           />
           <div>
             <Button fullWidth disabled={isLoading} type="submit">
